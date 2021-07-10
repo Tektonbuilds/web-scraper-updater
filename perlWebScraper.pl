@@ -45,55 +45,26 @@ open(FH, '>', $filename1) or die $!;
 
 my $dom = Mojo::DOM->new($mech->content);
 
-# Loop
-=begin comment
-for my $e ($dom->find('div')->each) {
+
+# Loop through everything that is a div with "content-genres-item" as the main class and another tag
+for my $e ($dom->find('div.content-genres-item *')->each) {
   if (length $e->tag) {
-    say ($e->tag, ':', $e->text);
-    print ($e->{id});
-  }
-  #if ($e->text =~  /Raising/)) {
-  #  say ($e->{id}, ':', $e->text);
-  #  print FH $e->{id}, ':', $e->text;
-  #}
-}
-# Modify
-$dom->find('div p')->last->append('<p id="c">456</p>');
-$dom->at('#c')->prepend($dom->new_tag('p', id => 'd', '789'));
-$dom->find(':not(p)')->map('strip');
-say("==========================Modify==========================");
-print FH "==========================Modify==========================";
-
-# Render
-#say ("$dom");
-say("============================Render============================");
-print FH "$dom";
-print FH "============================Render============================";
-=end comment
-
-=cut
-
-for my $e ($dom->find('div.content-genres-item a')->each) {
-  if (length $e->tag) {
-    if($e->{class} =~ 'genres-item-name text-nowrap a-h') {
-      my $title = $e->text;
-      say ("Manga Title:",$title);
+    if (length $e->text) {
+      if($e->{class} =~ 'genres-item-name text-nowrap a-h') {
+        my $title = $e->text;
+        say ("Manga Title:",$title);
+      }
+      if($e->{class} =~ 'genres-item-chap text-nowrap a-h') {
+        my $chapter = $e->text;
+        say ("Manga chapter:",$chapter);
+      }
+      if($e->{class} =~ 'genres-item-time') {
+        my $time = $e->text;
+        say ("time:",$time);
+      }
     }
-    if($e->{class} =~ 'genres-item-chap text-nowrap a-h') {
-      my $chapter = $e->text;
-      say ("Manga chapter:",$chapter);
-      #say ($e->{class}, ':', $e->tag, ':', $e->text);
-    }
-    #print ($e->tag, ':', $e->text);
   }
-  #if ($e->text =~  /Raising/)) {
-  #  say ($e->{id}, ':', $e->text);
-  #  print FH $e->{id}, ':', $e->text;
-  #}
 }
-#say("===========================Loop===========================");
-
-#print FH "===========================Loop===========================";
 
 
 close(FH);
