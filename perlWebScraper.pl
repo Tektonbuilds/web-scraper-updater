@@ -49,7 +49,6 @@ sub getMangaChapter {
   my ($json_data, $manga_name) = @_;
   for ( @{$json_data->{manga}} ) {
     if ($_->{name} eq $manga_name) { return $_->{chapter};}
-    #print $_->{name}, " ", $_->{chapter};
   }
   return -1;
 }
@@ -59,7 +58,6 @@ sub setMangaChapter {
   my ($json_data, $manga_name, $chapter) = @_;
   for ( @{$json_data->{manga}} ) {
     if ($_->{name} eq $manga_name) { $_->{chapter} = $chapter;}
-    #print $_->{name}, " ", $_->{chapter};
   }
 }
 
@@ -68,18 +66,7 @@ sub setMangaFound {
   my ($json_data, $manga_name) = @_;
   for ( @{$json_data->{manga}} ) {
     if ($_->{name} eq $manga_name) { $_->{found} = 1;}
-    #print $_->{name}, " ", $_->{chapter};
   }
-}
-
-sub getMangaFound {
-  my ($json_data, $manga_name) = @_;
-  for ( @{$json_data->{manga}} ) {
-    if ($_->{name} eq $manga_name) { return $_->{found};}
-    #print $_->{name}, " ", $_->{chapter};
-  }
-  # default return false
-  return 0;
 }
 
 # reset found manga
@@ -95,7 +82,6 @@ sub mangaUpdateComplete {
   for ( @{$json_data->{manga}} ) {
     # if the manga name matches and found is false, 
     if ($_->{found} eq 0) { return 0;}
-    #print $_->{name}, " ", $_->{chapter};
   }
   return 1;
 }
