@@ -9,12 +9,14 @@ use autodie;
 
 use lib qw(..);
 use JSON qw( );
+use utf8;
+use JSON;
 
 
 # STDOUT isn't expecting UTF-8, encode to remove "Wide character in print at..."
 binmode(STDOUT, "encoding(UTF-8)");
 
-# ==========================START SAVE HTML============================
+# ====================START INITIALIZE WEB SCRAPE======================
 my $mech = WWW::Mechanize->new( autocheck => 1 );
 
 my $live_link = "https://manganato.com/genre-all/";
@@ -22,23 +24,7 @@ my $live_link = "https://manganato.com/genre-all/";
 # link to the updated manga list to store for test
 $mech->get( $live_link );
 
-my $file_name = "manganelo-live.html";
-
-unless(-e $file_name) {
-    #Create the file if it doesn't exist
-    open my $fc, ">", $file_name
-        or die "Can't open file $!";
-    close $fc;
-}
-
-open(FH, '>', $file_name) or die $!;
-
-# write content into html
-print FH $mech->content;
-
-close(FH);
-
-# ==========================END SAVE HTML==============================
+# ====================END INITIALIZE WEB SCRAPE========================
 
 
 # ==========================START READ JSON============================
@@ -55,16 +41,11 @@ my $json_text = do {
 my $json = JSON->new;
 my $json_data = $json->decode($json_text);
 
-sub isMangaInJson {
-  my ($json_data, $manga_name) = @_;
-  for ( @{$json_data->{manga}} ) {
-    if ($_->{name} eq $manga_name) { return 1;}
-    #print $_->{name}, " ", $_->{chapter};
-  }
-  return 0;
-}
+# ==========================END READ JSON==============================
 
-sub getMangaChapterInJson {
+# ==========================START JSON FUNCTIONS============================
+
+sub getMangaChapter {
   my ($json_data, $manga_name) = @_;
   for ( @{$json_data->{manga}} ) {
     if ($_->{name} eq $manga_name) { return $_->{chapter};}
@@ -73,13 +54,58 @@ sub getMangaChapterInJson {
   return -1;
 }
 
-# ==========================END READ JSON==============================
+# set the found state of the manga 
+sub setMangaChapter {
+  my ($json_data, $manga_name, $chapter) = @_;
+  for ( @{$json_data->{manga}} ) {
+    if ($_->{name} eq $manga_name) { $_->{chapter} = $chapter;}
+    #print $_->{name}, " ", $_->{chapter};
+  }
+}
+
+# set the found state of the manga 
+sub setMangaFound {
+  my ($json_data, $manga_name) = @_;
+  for ( @{$json_data->{manga}} ) {
+    if ($_->{name} eq $manga_name) { $_->{found} = 1;}
+    #print $_->{name}, " ", $_->{chapter};
+  }
+}
+
+sub getMangaFound {
+  my ($json_data, $manga_name) = @_;
+  for ( @{$json_data->{manga}} ) {
+    if ($_->{name} eq $manga_name) { return $_->{found};}
+    #print $_->{name}, " ", $_->{chapter};
+  }
+  # default return false
+  return 0;
+}
+
+# reset found manga
+sub resetMangaFound {
+  my ($json_data) = @_;
+  for ( @{$json_data->{manga}} ) {
+    $_->{found} = 0;
+  }
+}
+
+sub mangaUpdateComplete {
+  my ($json_data) = @_;
+  for ( @{$json_data->{manga}} ) {
+    # if the manga name matches and found is false, 
+    if ($_->{found} eq 0) { return 0;}
+    #print $_->{name}, " ", $_->{chapter};
+  }
+  return 1;
+}
+# ==========================END JSON FUNCTIONS==============================
 
 # switch between test and live html 
 # test = 0 live = 1
 my $dom;
 my $fc;
-if (0) {
+if (1) {
   # get the content fresh
   $dom = Mojo::DOM->new($mech->content);
 } else {
@@ -99,27 +125,60 @@ if (0) {
 
 # Loop through everything that is a div with "content-genres-item" as the main class and another tag
 # declare variables for scope
-# TODO: MAKE SURE MANGA NAME, CHAPTER AND TIME ALL ARE DECLARED BEFORE CALLING isMangaInJson()
 my ($title, $chapter, $time);
-for my $e ($dom->find('div.content-genres-item *')->each) {
-  if (length $e->tag) {
+# set to false states 
+$title = '' , $chapter = '', $time = '';
+# only 2 to 10 will be scraped, 21 will be sacrificial
+for (2..201) {
+  for my $e ($dom->find('div.content-genres-item *')->each) {
+    # check if text is initialized/defined
     if (length $e->text) {
       if($e->{class} =~ 'genres-item-name text-nowrap a-h') {
-        my $title = $e->text;
-        #say ("Manga Title:",$title);
-        my $chapter = isMangaInJson($json_data, $title);
-        if ($chapter gt -1) {
-          print "Found manga ", $title, "\n";
-        }
+        if ($e->text) { $title = $e->text; }
       }
       if($e->{class} =~ 'genres-item-chap text-nowrap a-h') {
-        $chapter = $e->text;
-        #say ("Manga chapter:",$chapter);
+        if ($e->text) { 
+          $chapter = $e->text; 
+          # strip the text to just digits for the chapters in case they have characters in them
+          ( $chapter ) = $chapter =~ /(\d+)/;
+        }
       }
       if($e->{class} =~ 'genres-item-time') {
-        $time = $e->text;
-        #say ("time:",$time);
+        if ($e->text) { $time = $e->text; }
       }
+      if ($title and $chapter and $time) {
+        my $temp_chapter = getMangaChapter($json_data, $title);
+        # if chapter is found inside json_data and the chapter is greater than
+        if ($temp_chapter != -1) {
+          if ($chapter gt $temp_chapter) {
+            print "Updating manga ", $title, " chapter to ", $chapter, " from chapter ", $temp_chapter, " chapter updated: " , $time, " found on page: " , $_, "\n";
+            setMangaChapter($json_data, $title, $chapter);
+            # set the manga is found if we update the chapter
+            setMangaFound($json_data, $title);
+          } 
+          if ($chapter eq $temp_chapter) {
+            # set the manga is found if the chapter is hasn't been updated
+            print "Keeping manga ", $title, " chapter to ", $chapter, " chapter updated: " , $time, " found on page: " , $_, "\n";
+            setMangaFound($json_data, $title);
+          }
+        }
+        # reset variables for next chapter
+        $title = '' , $chapter = '', $time = '';
+      }
+
     }
   }
+  last if (mangaUpdateComplete($json_data));
+  # concatenate the new chapter
+  my $temp_link = $live_link.$_;
+  # get the new html content
+  $mech->get( $temp_link );
+  # update dom with new content to parse
+  $dom = Mojo::DOM->new($mech->content);
 }
+
+resetMangaFound($json_data);
+
+open my $fh, ">", $json_file;
+print $fh encode_json($json_data);
+close $fh;
